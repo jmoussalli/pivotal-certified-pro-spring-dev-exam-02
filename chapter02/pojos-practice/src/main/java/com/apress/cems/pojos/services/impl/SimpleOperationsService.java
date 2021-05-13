@@ -51,11 +51,22 @@ public class SimpleOperationsService implements OperationsService {
     private CriminalCaseRepo criminalCaseRepo;
     private EvidenceRepo evidenceRepo;
     private DetectiveRepo detectiveRepo;
+
     private StorageRepo storageRepo;
 
     @Override
     public Detective createDetective(String firstName, String lastName, LocalDateTime hiringDate, Rank rank) {
-        throw new NotImplementedException("Not needed for this section.");
+//        throw new NotImplementedException("Not needed for this section.");
+        var person = new Person();
+        person.setFirstName(firstName);
+        person.setLastName(lastName);
+        person.setHiringDate(hiringDate);
+        Detective detective = new Detective();
+        detective.setPerson(person);
+        detective.setRank(rank);
+        detective.setBadgeNumber(NumberGenerator.getBadgeNumber());
+        detectiveRepo.save(detective);
+        return detective;
     }
 
     @Override
@@ -63,13 +74,27 @@ public class SimpleOperationsService implements OperationsService {
         // get detective
         // TODO 1. retrieve detective  (according to diagram 2.5)
 
+        var detectiveOpt = detectiveRepo.findByBadgeNumber(badgeNo);
+
         // create a criminal case instance
-        CriminalCase criminalCase = new CriminalCase();
+        var criminalCase = new CriminalCase();
         // TODO 2. set fields; use ifPresent(..) to set(or not) the leadDetective field
+        criminalCase.setType(caseType);
+        criminalCase.setShortDescription(shortDescription);
+        detectiveOpt.ifPresent(criminalCase::setLeadInvestigator);
+        criminalCaseRepo.save(criminalCase);
 
         evidenceMap.forEach((ev, storageName) -> {
             // TODO 3. retrieve storage, throw ServiceException if not found
+            var storageOpt = storageRepo.findByName(storageName);
+            if (storageOpt.isPresent()) {
             // TODO 4. if storage is found, link it to the evidence and add evidence to the case
+                ev.setStorage(storageOpt.get());
+                criminalCase.addEvidence(ev);
+                evidenceRepo.save(ev);
+            } else {
+                throw new ServiceException("Evidence target not present in the system");
+            }
         });
 
         // TODO 5. save the criminal case instance
@@ -78,22 +103,53 @@ public class SimpleOperationsService implements OperationsService {
 
     @Override
     public Optional<CriminalCase> assignLeadInvestigator(String caseNumber, String leadDetectiveBadgeNo) {
-        throw new NotImplementedException("Not needed for this section.");
+//        throw new NotImplementedException("Not needed for this section.");
+        var criminalCaseOpt = criminalCaseRepo.findByNumber(caseNumber);
+        var detectiveOpt = detectiveRepo.findByBadgeNumber(leadDetectiveBadgeNo);
+        if (criminalCaseOpt.isPresent()) {
+            var criminalCase = criminalCaseOpt.get();
+            if (detectiveOpt.isPresent()) {
+                criminalCase.setLeadInvestigator(detectiveOpt.get());
+                criminalCaseRepo.save(criminalCase);
+            }
+        }
+        return Optional.empty();
     }
 
     @Override
     public Optional<CriminalCase> linkEvidence(String caseNumber, List<Evidence> evidenceList) {
-        throw new NotImplementedException("Not needed for this section.");
+//        throw new NotImplementedException("Not needed for this section.");
+        var opt = criminalCaseRepo.findByNumber(caseNumber);
+        if (opt.isPresent()) {
+            var criminalCase = opt.get();
+            criminalCase.getEvidenceSet().forEach(evidence -> {
+                evidence.setCriminalCase(criminalCase);
+                evidenceRepo.save(evidence);
+            });
+            return opt;
+        }
+        return Optional.empty();
     }
 
     @Override
     public boolean solveCase(String caseNumber, String reason) {
-        throw new NotImplementedException("Not needed for this section.");
+//        throw new NotImplementedException("Not needed for this section.");
+        criminalCaseRepo.findByNumber(caseNumber).ifPresent(criminalCase -> {
+            criminalCase.setStatus(CaseStatus.CLOSED);
+            criminalCase.getEvidenceSet().forEach(evidence -> evidence.setArchived(true));
+            criminalCaseRepo.save(criminalCase);
+        });
+        return true;
     }
 
     @Override
     public Set<Detective> getAssignedTeam(String caseNumber) {
-        throw new NotImplementedException("Not needed for this section.");
+//        throw new NotImplementedException("Not needed for this section.");
+        var opt = criminalCaseRepo.findByNumber(caseNumber);
+        if (opt.isPresent()) {
+            return opt.get().getAssigned();
+        }
+        return new HashSet<>();
     }
 
     //setters
